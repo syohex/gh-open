@@ -25,8 +25,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	branch, err := DetectBranch(flag.Arg(0))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+		os.Exit(1)
+	}
+
 	for _, r := range remotes {
-		url, err := MangleURL(r.Url)
+		url, err := MangleURL(r.Url, branch)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "remote:%s, %s\n", r.Name, err.Error())
 			continue

@@ -61,7 +61,7 @@ func DetectRemote(dir string) ([]*Remote, error) {
 //   - git@github.com:username/repo.git
 //   - https://github.com/username/repo.git
 //   - git://github.com/username/repo.git
-func MangleURL(url string) (string, error) {
+func MangleURL(url string, branch string) (string, error) {
 	ssh_re := regexp.MustCompile(`^git@(.*?):(.*?)/(.*?)\.git$`)
 	https_re := regexp.MustCompile(`^https://(.*?)/(.*?)/(.*?).git$`)
 	git_re := regexp.MustCompile(`^git://(.*?)/(.*?)/(.*?).git$`)
@@ -78,12 +78,57 @@ func MangleURL(url string) (string, error) {
 		return "", fmt.Errorf("unsupported remote url: %s", url)
 	}
 
-	return CreateURL(matches[1], matches[2], matches[3])
+	return CreateURL(matches[1], matches[2], matches[3], branch)
 }
 
-func CreateURL(host, user, repo string) (string, error) {
+func CreateURL(host, user, repo, branch string) (string, error) {
 	if host != "github.com" {
 		return "", fmt.Errorf("invalid github host: %s", host)
 	}
-	return fmt.Sprintf("https://%s/%s/%s", host, user, repo), nil
+
+	if branch == "master" {
+		return fmt.Sprintf("https://%s/%s/%s", host, user, repo), nil
+	} else {
+		return fmt.Sprintf("https://%s/%s/%s/tree/%s", host, user, repo, branch), nil
+	}
+}
+
+func DetectBranch(dir string) (string, error) {
+	git := exec.Command("git", "symbolic-ref", "HEAD")
+	git.Dir = dir
+
+	stdout, err := git.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	git.Stderr = os.Stderr
+
+	err = git.Start()
+	if err != nil {
+		return "", nil
+	}
+
+	branch := "master"
+
+	scanner := bufio.NewScanner(stdout)
+	re := regexp.MustCompile(`^refs/heads/(.+)$`)
+	for scanner.Scan() {
+		line := scanner.Text()
+		m := re.FindStringSubmatch(line)
+		if m != nil {
+			branch = m[1]
+			break
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	if err := git.Wait(); err != nil {
+		// maybe unnamed branch
+		return "master", nil
+	}
+
+	return branch, nil
 }

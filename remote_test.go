@@ -89,11 +89,41 @@ func TestDetectRemote(t *testing.T) {
 	}
 }
 
+func TestDetectBranch(t *testing.T) {
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Error("failed to create tempdir:", err)
+	}
+	defer syscall.Rmdir(dir)
+
+	git := exec.Command("git", "init")
+	git.Dir = dir
+	if err := git.Run(); err != nil {
+		t.Error("failed to run git init:", err)
+	}
+
+	git = exec.Command("git", "checkout", "-b", "foo")
+	git.Dir = dir
+	if err := git.Run(); err != nil {
+		t.Error("failed to run git init:", err)
+	}
+
+	branch, err := DetectBranch(dir)
+
+	if err != nil {
+		t.Error("error should be nil:", err)
+	}
+
+	if branch != "foo" {
+		t.Error("failed to detect branch name")
+	}
+}
+
 func TestMangleURL(t *testing.T) {
 	expected := "https://github.com/username/repo"
 
 	// ssh
-	u, err := MangleURL("git@github.com:username/repo.git")
+	u, err := MangleURL("git@github.com:username/repo.git", "master")
 	if err != nil {
 		t.Error("error should be nil:", err)
 	}
@@ -102,7 +132,7 @@ func TestMangleURL(t *testing.T) {
 	}
 
 	// https
-	u, err = MangleURL("https://github.com/username/repo.git")
+	u, err = MangleURL("https://github.com/username/repo.git", "master")
 	if err != nil {
 		t.Error("error should be nil:", err)
 	}
@@ -111,7 +141,7 @@ func TestMangleURL(t *testing.T) {
 	}
 
 	// git
-	u, err = MangleURL("git://github.com/username/repo.git")
+	u, err = MangleURL("git://github.com/username/repo.git", "master")
 	if err != nil {
 		t.Error("error should be nil:", err)
 	}
@@ -120,7 +150,7 @@ func TestMangleURL(t *testing.T) {
 	}
 
 	// different host
-	u, err = MangleURL("git@example.com:username/repo.git")
+	u, err = MangleURL("git@example.com:username/repo.git", "master")
 	if err == nil {
 		t.Error("error should be set:", err)
 	}
@@ -129,11 +159,23 @@ func TestMangleURL(t *testing.T) {
 	}
 
 	// unsupported host
-	u, err = MangleURL("git@example.com:repo.git")
+	u, err = MangleURL("git@example.com:repo.git", "master")
 	if err == nil {
 		t.Error("error should be set:", err)
 	}
 	if err.Error() != "unsupported remote url: git@example.com:repo.git" {
 		t.Error("unexpected error:", err)
+	}
+}
+
+func TestMangleURL_NotMaster(t *testing.T) {
+	expected := "https://github.com/username/repo/tree/foobar"
+
+	u, err := MangleURL("git@github.com:username/repo.git", "foobar")
+	if err != nil {
+		t.Error("error should be nil:", err)
+	}
+	if u != expected {
+		t.Error("unexpected url:", u)
 	}
 }
