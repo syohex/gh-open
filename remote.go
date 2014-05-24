@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"net/http"
 )
 
 type Remote struct {
@@ -81,16 +82,27 @@ func MangleURL(url string, branch string) (string, error) {
 	return CreateURL(matches[1], matches[2], matches[3], branch)
 }
 
+func isURLExisted(url string) bool {
+	if resp, _ := http.Head(url); resp.StatusCode == 200 {
+		return true
+	}
+
+	return false
+}
+
 func CreateURL(host, user, repo, branch string) (string, error) {
 	if host != "github.com" {
 		return "", fmt.Errorf("invalid github host: %s", host)
 	}
 
-	if branch == "master" {
-		return fmt.Sprintf("https://%s/%s/%s", host, user, repo), nil
-	} else {
-		return fmt.Sprintf("https://%s/%s/%s/tree/%s", host, user, repo, branch), nil
+	if branch != "master" {
+		url := fmt.Sprintf("https://%s/%s/%s/tree/%s", host, user, repo, branch)
+		if isURLExisted(url) {
+			return url, nil
+		}
 	}
+
+	return fmt.Sprintf("https://%s/%s/%s", host, user, repo), nil
 }
 
 func DetectBranch(dir string) (string, error) {
